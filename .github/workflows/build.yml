@@ -81,13 +81,30 @@ jobs:
           ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
 
+      - name: Listar APKs generados
+        run: |
+          echo "=== Contenido de bin/ ==="
+          ls -la bin/ || echo "carpeta bin/ vacía o no existe"
+          echo "=== Todos los APKs ==="
+          find . -name "*.apk" 2>/dev/null || echo "ningún APK encontrado"
+
       - name: Firmar APK
         run: |
-          APK=$(find bin/ -name "*-unsigned.apk" | head -1)
-          if [ -z "$APK" ]; then
-            APK=$(find bin/ -name "*.apk" | head -1)
-          fi
+          echo "=== Buscando APK ==="
+          ls -la bin/
+
+          # Intentar distintos patrones de nombre
+          APK=$(find bin/ -name "*-release-unsigned.apk" | head -1)
+          if [ -z "$APK" ]; then APK=$(find bin/ -name "*unsigned*.apk" | head -1); fi
+          if [ -z "$APK" ]; then APK=$(find bin/ -name "*release*.apk" | head -1); fi
+          if [ -z "$APK" ]; then APK=$(find bin/ -name "*.apk" | head -1); fi
+
           echo "APK encontrado: $APK"
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: No se encontró ningún APK en bin/"
+            exit 1
+          fi
 
           # Alinear
           ~/.buildozer/android/platform/android-sdk/build-tools/35.0.0/zipalign \
