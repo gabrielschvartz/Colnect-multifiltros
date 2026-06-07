@@ -38,18 +38,34 @@ PADDING_UI   = [28, 22, 28, 18]
 # ---------------------------------------------------------------------------
 # CONFIGURACIÓN REMOTA
 # ---------------------------------------------------------------------------
-GITHUB_RAW   = "https://raw.githubusercontent.com/gabrielschvartz/Colnect-multifiltros/main/"
-CSV_FILES    = ["paises.csv", "valores.csv"]
-VERSION_FILE = "version.txt"
-TIMEOUT_SEG  = 6
+GITHUB_RAW    = "https://raw.githubusercontent.com/gabrielschvartz/Colnect-multifiltros/main/"
+CSV_FILES     = ["paises.csv", "valores.csv"]
+VERSION_FILE  = "version.txt"
+VERSION_APP   = "1.0"          # versión actual de esta app
+APK_URL       = "https://github.com/gabrielschvartz/Colnect-multifiltros/releases/latest/download/ColnectMultifiltros-release.apk"
+TIMEOUT_SEG   = 6
 
 
-def _leer_version_local():
+def _leer_versiones_locales():
+    """Devuelve (version_csv, version_app) guardadas localmente."""
     try:
         with open(VERSION_FILE, encoding="utf-8") as f:
-            return f.read().strip()
+            datos = {}
+            for linea in f:
+                linea = linea.strip()
+                if '=' in linea:
+                    clave, valor = linea.split('=', 1)
+                    datos[clave.strip().upper()] = valor.strip()
+        return datos.get('CSV', '0'), datos.get('APP', '0')
     except FileNotFoundError:
-        return "0"
+        return "0", "0"
+
+
+def _guardar_version_csv(nueva_version_csv):
+    """Guarda la versión CSV manteniendo la versión APP."""
+    _, ver_app = _leer_versiones_locales()
+    with open(VERSION_FILE, "w", encoding="utf-8") as f:
+        f.write(f"CSV={nueva_version_csv}\nAPP={ver_app}\n")
 
 
 def _descargar_archivo(nombre):
@@ -66,30 +82,52 @@ def _descargar_archivo(nombre):
         return False
 
 
-def actualizar_csvs_si_hay_nueva_version(callback_fin):
+def chequear_actualizaciones(callback_csv, callback_app):
+    """
+    Corre en hilo secundario. Descarga version.txt remoto y:
+    - Llama callback_csv(hubo_actualizacion: bool) si los CSVs cambiaron
+    - Llama callback_app(version_nueva: str) si hay nueva versión de la app,
+      o callback_app(None) si está al día
+    """
     def _tarea():
         try:
             url_ver = GITHUB_RAW + VERSION_FILE
             with urllib.request.urlopen(url_ver, timeout=TIMEOUT_SEG) as resp:
-                version_remota = resp.read().decode().strip()
+                datos = {}
+                for linea in resp.read().decode().splitlines():
+                    linea = linea.strip()
+                    if '=' in linea:
+                        clave, valor = linea.split('=', 1)
+                        datos[clave.strip().upper()] = valor.strip()
+            ver_csv_remota = datos.get('CSV', '0')
+            ver_app_remota = datos.get('APP', '0')
         except Exception as e:
             print(f"[Updater] No se pudo obtener version.txt: {e}")
-            Clock.schedule_once(lambda dt: callback_fin(False))
+            Clock.schedule_once(lambda dt: callback_csv(False))
+            Clock.schedule_once(lambda dt: callback_app(None))
             return
 
-        version_local = _leer_version_local()
-        if version_remota == version_local:
-            print(f"[Updater] CSVs al día (versión {version_local}).")
-            Clock.schedule_once(lambda dt: callback_fin(False))
+        ver_csv_local, _ = _leer_versiones_locales()
+
+        # ── Chequeo versión app ──────────────────────────────────────────
+        if ver_app_remota != "0" and ver_app_remota != VERSION_APP:
+            print(f"[Updater] Nueva versión de app: {ver_app_remota} (actual: {VERSION_APP})")
+            Clock.schedule_once(lambda dt: callback_app(ver_app_remota))
+        else:
+            Clock.schedule_once(lambda dt: callback_app(None))
+
+        # ── Chequeo versión CSVs ─────────────────────────────────────────
+        if ver_csv_remota == ver_csv_local:
+            print(f"[Updater] CSVs al día (versión {ver_csv_local}).")
+            Clock.schedule_once(lambda dt: callback_csv(False))
             return
 
-        print(f"[Updater] Nueva versión {version_remota}. Descargando CSVs…")
+        print(f"[Updater] Nueva versión CSV {ver_csv_remota}. Descargando…")
         ok = all(_descargar_archivo(f) for f in CSV_FILES)
         if ok:
-            with open(VERSION_FILE, "w", encoding="utf-8") as f:
-                f.write(version_remota)
-            print(f"[Updater] Versión {version_remota} instalada.")
-        Clock.schedule_once(lambda dt: callback_fin(ok))
+            _guardar_version_csv(ver_csv_remota)
+            print(f"[Updater] CSVs actualizados a versión {ver_csv_remota}.")
+        Clock.schedule_once(lambda dt: callback_csv(ok))
 
     threading.Thread(target=_tarea, daemon=True).start()
 
@@ -411,7 +449,48 @@ class LogoAnimado(BoxLayout):
 
 
 
-class PantallaCarga(BoxLayout):
+# ---------------------------------------------------------------------------
+# DIÁLOGO DE ACTUALIZACIÓN
+# ---------------------------------------------------------------------------
+class DialogoActualizacion(BoxLayout):
+    def __init__(self, version_nueva, callback_actualizar, callback_omitir, **kwargs):
+        super().__init__(orientation='vertical', padding=30, spacing=16, **kwargs)
+
+        with self.canvas.before:
+            Color(0.15, 0.16, 0.20, 0.92)
+            self.fondo = RoundedRectangle(radius=[20])
+        self.bind(pos=self._upd, size=self._upd)
+
+        self.add_widget(Label(
+            text='🆕  Nueva versión disponible',
+            font_size='20sp', bold=True,
+            color=(1, 1, 1, 1),
+            size_hint_y=None, height=40,
+        ))
+        self.add_widget(Label(
+            text=f'Versión {version_nueva} disponible.\n¿Desea actualizar ahora?',
+            font_size='16sp',
+            color=(0.85, 0.88, 0.95, 1),
+            size_hint_y=None, height=55,
+            halign='center',
+        ))
+
+        fila = BoxLayout(orientation='horizontal', spacing=16, size_hint_y=None, height=ALTO_BOTON)
+        btn_si = BotonRedondeado((0.62, 0.86, 0.65), text='Actualizar')
+        btn_no = BotonRedondeado((0.75, 0.75, 0.80), text='Ahora no')
+        btn_si.bind(on_press=lambda *a: callback_actualizar())
+        btn_no.bind(on_press=lambda *a: callback_omitir())
+        fila.add_widget(btn_si)
+        fila.add_widget(btn_no)
+        self.add_widget(fila)
+
+    def _upd(self, *args):
+        self.fondo.pos  = self.pos
+        self.fondo.size = self.size
+
+
+# ---------------------------------------------------------------------------
+# PANTALLA DE CARGA
     def __init__(self, **kwargs):
         super().__init__(orientation='vertical', **kwargs)
         self._punto  = 0
@@ -458,10 +537,33 @@ class ColnectApp(App):
         self.root_layout = BoxLayout(orientation='vertical')
         self._pantalla_carga = PantallaCarga()
         self.root_layout.add_widget(self._pantalla_carga)
-        actualizar_csvs_si_hay_nueva_version(self._on_actualizacion_lista)
+        self._csv_listo     = False
+        self._app_chequeada = False
+        self._version_nueva = None
+        chequear_actualizaciones(
+            callback_csv=self._on_csv_listo,
+            callback_app=self._on_app_chequeada,
+        )
         return self.root_layout
 
-    def _on_actualizacion_lista(self, hubo_actualizacion):
+    # ------------------------------------------------------------------
+    # Callbacks de actualización
+    # ------------------------------------------------------------------
+    def _on_csv_listo(self, hubo_actualizacion):
+        self._csv_listo = True
+        self._hubo_actualizacion_csv = hubo_actualizacion
+        self._intentar_continuar()
+
+    def _on_app_chequeada(self, version_nueva):
+        self._app_chequeada = True
+        self._version_nueva = version_nueva
+        self._intentar_continuar()
+
+    def _intentar_continuar(self):
+        # Espera a que ambos callbacks hayan respondido
+        if not (self._csv_listo and self._app_chequeada):
+            return
+
         self._pantalla_carga.detener()
         self.paises  = self._leer_csv('paises.csv')
         self.valores = self._leer_csv('valores.csv')
@@ -472,11 +574,52 @@ class ColnectApp(App):
             )
             return
 
-        if hubo_actualizacion:
+        # Si hay nueva versión de la app, mostrar diálogo primero
+        if self._version_nueva:
+            self._mostrar_dialogo_actualizacion(self._version_nueva)
+        elif self._hubo_actualizacion_csv:
             self._pantalla_carga.set_mensaje('✔ Datos actualizados')
             Clock.schedule_once(lambda dt: self._construir_ui(), 0.8)
         else:
             self._construir_ui()
+
+    def _mostrar_dialogo_actualizacion(self, version_nueva):
+        self.root_layout.clear_widgets()
+        fondo = BoxLayout(orientation='vertical')
+        with fondo.canvas.before:
+            Color(*Window.clearcolor)
+            self._fondo_rect = RoundedRectangle()
+        fondo.bind(pos=lambda *a: setattr(self._fondo_rect, 'pos', fondo.pos),
+                   size=lambda *a: setattr(self._fondo_rect, 'size', fondo.size))
+
+        fondo.add_widget(Label(size_hint_y=0.3))
+        dialogo = DialogoActualizacion(
+            version_nueva=version_nueva,
+            callback_actualizar=self._descargar_actualizacion,
+            callback_omitir=self._construir_ui,
+        )
+        dialogo.size_hint = (0.9, None)
+        dialogo.height = 220
+        fondo.add_widget(dialogo)
+        fondo.add_widget(Label(size_hint_y=0.3))
+        self.root_layout.add_widget(fondo)
+
+    def _descargar_actualizacion(self):
+        from kivy.utils import platform
+        if platform == 'android':
+            try:
+                from jnius import autoclass
+                Intent         = autoclass('android.content.Intent')
+                Uri            = autoclass('android.net.Uri')
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                intent = Intent(Intent.ACTION_VIEW, Uri.parse(APK_URL))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                PythonActivity.mActivity.startActivity(intent)
+            except Exception as e:
+                print(f"[Updater] Error al abrir APK: {e}")
+                webbrowser.open(APK_URL, new=0)
+        else:
+            webbrowser.open(APK_URL, new=0)
 
     @staticmethod
     def _leer_csv(nombre):

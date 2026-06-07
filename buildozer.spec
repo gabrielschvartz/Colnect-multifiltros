@@ -103,7 +103,7 @@ fullscreen = 1
 
 # (list) Permissions
 # (See https://python-for-android.readthedocs.io/en/latest/buildoptions.html for all the supported syntaxes and properties)
-android.permissions = INTERNET
+android.permissions = INTERNET, REQUEST_INSTALL_PACKAGES
 
 # (list) features (adds uses-feature -tags to manifest)
 #android.features = android.hardware.usb.host
@@ -112,7 +112,7 @@ android.permissions = INTERNET
 android.api = 35
 
 # (int) Minimum API your APK / AAB will support.
-android.minapi = 33
+android.minapi = 29
 
 # (int) Android SDK version to use
 #android.sdk = 20
@@ -495,4 +495,3 @@ warn_on_root = 1
 #        buildozer --profile demo android debug
 #
 #   Environment variable overrides have priority over profile overrides.
-android.sdk_build_tools = 35.0.0
