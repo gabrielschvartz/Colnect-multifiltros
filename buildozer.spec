@@ -98,8 +98,8 @@ fullscreen = 1
 #android.presplash_lottie = "path/to/lottie/file.json"
 
 # (str) Adaptive icon of the application (used if Android API level is 26+ at runtime)
-#icon.adaptive_foreground.filename = %(source.dir)s/data/icon_fg.png
-#icon.adaptive_background.filename = %(source.dir)s/data/icon_bg.png
+icon.adaptive_foreground.filename = %(source.dir)s/icon_fg.png
+icon.adaptive_background.filename = %(source.dir)s/icon_bg.png
 
 # (list) Permissions
 # (See https://python-for-android.readthedocs.io/en/latest/buildoptions.html for all the supported syntaxes and properties)
