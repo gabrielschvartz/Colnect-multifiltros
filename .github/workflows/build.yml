@@ -46,6 +46,11 @@ jobs:
 
       - name: Instalar Android SDK y aceptar licencias
         run: |
+          # Configurar Java 17
+          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+          export PATH=$JAVA_HOME/bin:$PATH
+          java -version
+
           # Descargar command line tools
           mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
           cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
@@ -54,10 +59,12 @@ jobs:
           mv cmdline-tools latest
 
           # Aceptar todas las licencias automáticamente
-          yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          yes | JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+            ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
           # Instalar build-tools y platform-tools
-          ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+          JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+            ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
             "build-tools;35.0.0" \
             "platforms;android-35" \
             "platform-tools"
