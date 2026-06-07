@@ -69,6 +69,13 @@ jobs:
             "platforms;android-35" \
             "platform-tools"
 
+          # Symlink para que Buildozer encuentre sdkmanager en la ruta antigua
+          mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+          ln -sf ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+            ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          ln -sf ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/avdmanager \
+            ~/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
+
       - name: Compilar APK debug
         run: |
           buildozer android debug
