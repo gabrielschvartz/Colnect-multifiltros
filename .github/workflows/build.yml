@@ -3,7 +3,10 @@ name: Build APK
 on:
   push:
     branches: [ master ]
-  workflow_dispatch:   # permite lanzarlo manualmente desde GitHub
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -26,8 +29,7 @@ jobs:
             git zip unzip openjdk-17-jdk \
             libffi-dev libssl-dev libbz2-dev zlib1g-dev \
             libncurses5-dev libsqlite3-dev libreadline-dev \
-            autoconf libtool pkg-config cmake \
-            libltdl-dev
+            autoconf libtool pkg-config cmake libltdl-dev
 
       - name: Instalar Buildozer y Cython
         run: |
@@ -40,14 +42,32 @@ jobs:
           path: |
             ~/.buildozer/android/platform/android-sdk
             ~/.buildozer/android/platform/android-ndk*
-          key: android-sdk-ndk-${{ runner.os }}
+          key: android-sdk-ndk-${{ runner.os }}-v2
+
+      - name: Instalar Android SDK y aceptar licencias
+        run: |
+          # Descargar command line tools
+          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          mv cmdline-tools latest
+
+          # Aceptar todas las licencias automáticamente
+          yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+
+          # Instalar build-tools y platform-tools
+          ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+            "build-tools;35.0.0" \
+            "platforms;android-35" \
+            "platform-tools"
 
       - name: Compilar APK debug
         run: |
           buildozer android debug
         env:
-          ANDROIDAPI: "35"
-          ANDROIDMINAPI: "33"
+          ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
 
       - name: Subir APK como artefacto
         uses: actions/upload-artifact@v4
