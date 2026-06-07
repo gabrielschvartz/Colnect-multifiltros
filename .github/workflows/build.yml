@@ -46,46 +46,67 @@ jobs:
 
       - name: Instalar Android SDK y aceptar licencias
         run: |
-          # Configurar Java 17
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
-          java -version
 
-          # Descargar command line tools
           mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
           cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           unzip -q commandlinetools-linux-11076708_latest.zip
           mv cmdline-tools latest
 
-          # Aceptar todas las licencias automáticamente
           yes | JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
             ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # Instalar build-tools y platform-tools
           JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
             ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
             "build-tools;35.0.0" \
             "platforms;android-35" \
             "platform-tools"
 
-          # Symlink para que Buildozer encuentre sdkmanager en la ruta antigua
           mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
           ln -sf ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
             ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
           ln -sf ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/avdmanager \
             ~/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
 
-      - name: Compilar APK debug
+      - name: Restaurar keystore
         run: |
-          buildozer android debug
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ~/colnect.keystore
+
+      - name: Compilar APK release
+        run: |
+          buildozer android release
         env:
           ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+
+      - name: Firmar APK
+        run: |
+          APK=$(find bin/ -name "*-unsigned.apk" | head -1)
+          if [ -z "$APK" ]; then
+            APK=$(find bin/ -name "*.apk" | head -1)
+          fi
+          echo "APK encontrado: $APK"
+
+          # Alinear
+          ~/.buildozer/android/platform/android-sdk/build-tools/35.0.0/zipalign \
+            -v 4 "$APK" bin/colnect-aligned.apk
+
+          # Firmar
+          ~/.buildozer/android/platform/android-sdk/build-tools/35.0.0/apksigner sign \
+            --ks ~/colnect.keystore \
+            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+            --out bin/ColnectMultifiltros-release.apk \
+            bin/colnect-aligned.apk
+
+          echo "APK firmado correctamente"
 
       - name: Subir APK como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: ColnectMultifiltros-APK
-          path: bin/*.apk
+          path: bin/ColnectMultifiltros-release.apk
           retention-days: 30
