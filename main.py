@@ -528,6 +528,48 @@ class DialogoActualizacion(BoxLayout):
             self._evento = None
 
 
+
+# ---------------------------------------------------------------------------
+# PANTALLA DE CARGA
+# ---------------------------------------------------------------------------
+class PantallaCarga(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(orientation='vertical', **kwargs)
+        self._punto  = 0
+        self._evento = None
+
+        self.add_widget(Label(size_hint_y=0.35))
+        self.lbl_icono = Label(text='🔄', font_size='52sp', size_hint_y=None, height=70)
+        self.add_widget(self.lbl_icono)
+        self.lbl_estado = Label(
+            text='Verificando actualizaciones…',
+            font_size='16sp', bold=True,
+            color=(0.3, 0.3, 0.35, 1),
+            size_hint_y=None, height=40,
+        )
+        self.add_widget(self.lbl_estado)
+        self.lbl_puntos = Label(
+            text='', font_size='20sp',
+            color=(0.55, 0.55, 0.62, 1),
+            size_hint_y=None, height=35,
+        )
+        self.add_widget(self.lbl_puntos)
+        self.add_widget(Label(size_hint_y=0.35))
+        self._evento = Clock.schedule_interval(self._animar, 0.45)
+
+    def _animar(self, dt):
+        self._punto = (self._punto + 1) % 4
+        self.lbl_puntos.text = '●' * self._punto + '○' * (3 - self._punto)
+
+    def set_mensaje(self, texto):
+        self.lbl_estado.text = texto
+
+    def detener(self):
+        if self._evento:
+            self._evento.cancel()
+            self._evento = None
+
+
 # ---------------------------------------------------------------------------
 # APP PRINCIPAL
 # ---------------------------------------------------------------------------
