@@ -32,8 +32,8 @@ ALTO_BOTON   = 59
 RADIO_CAMPO  = 18          # bordes redondeados campos
 RADIO_BOTON  = 22          # bordes redondeados botones
 RADIO_OPCION = 10          # bordes redondeados opciones desplegable
-SPACING_UI   = 24          # espaciado vertical entre elementos
-PADDING_UI   = [28, 90, 28, 18]
+SPACING_UI   = 18          # espaciado vertical entre elementos
+PADDING_UI   = [28, 70, 28, 18]
 
 # ---------------------------------------------------------------------------
 # CONFIGURACIÓN REMOTA
